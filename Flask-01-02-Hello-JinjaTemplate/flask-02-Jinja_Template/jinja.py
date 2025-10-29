@@ -7,7 +7,7 @@ app = Flask(__name__)
 def head():
     return render_template('index.html', number1= 78, number2= 89)
 
-@app.route('/mult')
+@app.route('/sum')
 def number():
     x=78
     y=89
