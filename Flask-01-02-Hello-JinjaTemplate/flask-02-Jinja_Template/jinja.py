@@ -5,13 +5,13 @@ app = Flask(__name__)
 
 @app.route('/')
 def head():
-    return render_template('index.html', number1= 7, number2= 8)
+    return render_template('index.html', number1= 78, number2= 89)
 
 @app.route('/mult')
 def number():
-    x=7
-    y=8
-    return render_template('body.html', value1=x, value2=y, mult=x*y)
+    x=78
+    y=89
+    return render_template('body.html', value1=x, value2=y, sum=x+y)
 
 
 
