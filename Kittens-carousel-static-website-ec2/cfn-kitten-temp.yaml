@@ -53,12 +53,12 @@ Resources:
       UserData: !Base64 |
         #!/bin/bash
         dnf update -y
-        dnf install -y httpd git
-        cmod 777 /var/www/html
+        dnf install httpd -y
+        chmod 777 /var/www/html
         cd /var/www/html
         dnf install git -y
         git clone https://github.com/BabakTanriverdi/AWS_Projects.git
-        mv AWS_Projects/Kittens_Carousel_Static_Website/static-web/* .
+        mv AWS_Projects/Kittens-carousel-static-website-ec2/static-web/* .
         systemctl start httpd
         systemctl enable httpd
         
