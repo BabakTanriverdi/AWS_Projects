@@ -85,7 +85,7 @@ Kittens Carousel is a static website application deployed with Apache Web Server
 
 ## Steps to Solution
   
-- Step 1: Download or clone project definition from `ondia` repo on Github 
+- Step 1: Download or clone the project definition from your own GitHub repository (for example, https://github.com/BabakTanriverdi/AWS_Projects.git).
 
 - Step 2: Create project folder for local public repo on your pc
 
