@@ -18,13 +18,15 @@ Parameters:
       - t2.micro
       - t3.small
       - t3.micro
-  imageID:
+    
+  Image_ID:
     Description: Name of a Parameter Store parameter that stores the ID of the Amazon Machine Image (AMI).
     Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
     Default: /aws/service/ami-amazon-linux-latest/al2023-ami-kernel-6.1-x86_64
   
+
 Resources:
-  mysecGrp:
+  MySecGrp:
     Type: AWS::EC2::SecurityGroup
     Properties:
       GroupDescription: ssh and http # Required
@@ -34,18 +36,20 @@ Resources:
           FromPort: 80
           IpProtocol: tcp
           ToPort: 80
+        
         - CidrIp: 0.0.0.0/0
           FromPort: 22
           IpProtocol: tcp
           ToPort: 22
+  
   MyWebServer:
     Type: AWS::EC2::Instance
     Properties:
-      ImageId: !Ref imageID
+      ImageId: !Ref Image_ID
       InstanceType: !Ref InstanceType
       KeyName: !Ref keyPair
       SecurityGroupIds: 
-        - !Ref mysecGrp
+        - !Ref MySecGrp
       
       Tags: 
         - Key: Name
