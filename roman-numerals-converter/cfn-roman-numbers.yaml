@@ -1,0 +1,69 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: |
+  CloudFormation template for Roman Numerals Converter Application
+
+Parameters:
+  KeyPair:
+    Description: Choose your key pair
+    Type: AWS::EC2::KeyPair::KeyName
+    Default: mod_1_key
+
+  AMIId:
+    Description: LatestAMIId
+    Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
+    Default: /aws/service/ami-amazon-linux-latest/al2023-ami-kernel-6.1-x86_64
+
+  MyInstanceType:
+    Description: Default is t3.micro.
+    Type: String
+    Default: t3.micro
+    AllowedValues:
+      - t3.small
+      - t3.micro
+
+Resources:
+  MySecGrp:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: ssh and http
+      GroupName: RomanSecGrp
+      SecurityGroupIngress: 
+        - CidrIp: 0.0.0.0/0
+          FromPort: 80
+          IpProtocol: tcp
+          ToPort: 80
+        - CidrIp: 0.0.0.0/0
+          FromPort: 22
+          IpProtocol: tcp
+          ToPort: 22
+  MyWebServer:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: !Ref AMIId
+      InstanceType: !Ref MyInstanceType
+      KeyName: !Ref KeyPair
+      SecurityGroupIds: 
+        - !Ref MySecGrp
+      Tags: 
+        - Key: Name
+          Value: !Sub Webserver for ${AWS::StackName}
+      UserData: !Base64 |
+        #!/bin/bash
+        dnf update -y
+        dnf install python3 -y
+        dnf install python3-pip -y
+        pip3 install flask
+        dnf install git -y
+        FOLDER="https://raw.githubusercontent.com/BabakTanriverdi/AWS_Projects/refs/heads/main/roman-numerals-converter/templates"
+        cd /home/ec2-user
+        wget -P templates ${FOLDER}/index.html
+        wget -P templates ${FOLDER}/result.html
+        wget https://raw.githubusercontent.com/BabakTanriverdi/AWS_Projects/refs/heads/main/roman-numerals-converter/roman-numerals-converter-app.py
+        python3 roman-numerals-converter-app.py
+
+Outputs:
+  WebSiteURL:
+    Description: URL of Website
+    Value: !Sub
+      - http://${PublicDNS}
+      - PublicDNS: !GetAtt MyWebServer.PublicDnsName
