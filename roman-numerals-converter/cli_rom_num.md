@@ -114,7 +114,7 @@ aws ec2 describe-instances --filters "Name=tag:Name,Values=babak_roman_numbers" 
 
 aws ec2 describe-instances --filters "Name=tag:Name,Values=babak_roman_numbers" --query 'Reservations[].Instances[].InstanceId[]'
 
-INSTANCE_ID="aws ec2 describe-instances --filters "Name=tag:Name,Values=babak_roman_numbers" --query 'Reservations[].Instances[].InstanceId[]'"
+INSTANCE_ID=$(aws ec2 describe-instances --filters "Name=tag:Name,Values=babak_roman_numbers" --query 'Reservations[].Instances[].InstanceId[]')
 ```
 
 - To delete instances
