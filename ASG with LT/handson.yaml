@@ -1,0 +1,220 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: |
+  This CFN template creates ASG and ALB with ASG Target Tracking Policy.
+
+
+Parameters:
+  KeyPair:
+    Description: Choose your KeyPair
+    Type: AWS::EC2::KeyPair::KeyName
+    Default: mod_1_key
+
+  MyInstance:
+    Description: Enter t3.micro, or t3.small. Default is t3.micro.
+    Type: String
+    Default: t3.micro
+    AllowedValues:
+      - t3.micro
+      - t3.small
+
+  MyVPC:
+    Description: Select your VPC
+    Type: AWS::EC2::VPC::Id
+
+  MySubnet:
+    Description: Select minimum 2 Subnets from different AZs
+    Type: List<AWS::EC2::Subnet::Id>
+
+  MyEnv:
+    Description: Select your environment
+    Type: String
+    Default: prod
+    AllowedValues:
+      - prod
+      - test
+
+
+Mappings:
+  MyRegionImageMap:
+    us-east-1:
+      prod: ami-0fa3fe0fa7920f68e
+      test: ami-0ecb62995f68bb549
+    us-west-1:
+      prod: ami-0fa3fe0fa7920f68e
+      test: ami-0ecb62995f68bb549
+    us-east-2:
+      prod: ami-0fa3fe0fa7920f68e
+      test: ami-0ecb62995f68bb549
+
+
+Resources:
+
+  #############################
+  # SECURITY GROUPS
+  #############################
+
+  MyInstanceSecGrp:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: SG for EC2 instances
+      VpcId: !Ref MyVPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          SourceSecurityGroupId: !Ref MyALBSecGrp
+      Tags:
+        - Key: Name
+          Value: babak-ec2-sg
+
+  MyALBSecGrp:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: SG for ALB
+      VpcId: !Ref MyVPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+      Tags:
+        - Key: Name
+          Value: babak-alb-sg
+
+
+  #############################
+  # LAUNCH TEMPLATE
+  #############################
+  
+  MyLaunchTemplate:
+    Type: AWS::EC2::LaunchTemplate
+    Properties:
+      LaunchTemplateName: !Sub "babak-cfn-asg-${AWS::StackName}"
+      LaunchTemplateData:
+        ImageId: !FindInMap [MyRegionImageMap, !Ref 'AWS::Region', !Ref MyEnv]
+        InstanceType: !Ref MyInstance
+        KeyName: !Ref KeyPair
+        SecurityGroupIds:
+          - !Ref MyInstanceSecGrp
+        UserData:
+          Fn::Base64: !Sub |
+            #!/bin/bash
+            dnf update -y
+            dnf install -y httpd
+
+            TOKEN=$(curl -X PUT "http://169.254.169.254/latest/api/token" \
+              -H "X-aws-ec2-metadata-token-ttl-seconds: 21600")
+
+            PRIVATE_IP=$(curl -H "X-aws-ec2-metadata-token: $TOKEN" \
+              http://169.254.169.254/latest/meta-data/local-ipv4)
+
+            PUBLIC_IP=$(curl -H "X-aws-ec2-metadata-token: $TOKEN" \
+              http://169.254.169.254/latest/meta-data/public-ipv4)
+
+            DATE_TIME=$(date)
+
+            chmod -R 777 /var/www/html
+
+            echo "<html>
+            <head><title>Launch Template Instance</title></head>
+            <body>
+              <h1>This Web Server is launched from Launch Template by Babak</h1>
+              <p>Created at: <b>$DATE_TIME</b></p>
+              <p>Private IP: <b>$PRIVATE_IP</b></p>
+              <p>Public IP: <b>$PUBLIC_IP</b></p>
+            </body>
+            </html>" > /var/www/html/index.html
+
+            systemctl start httpd
+            systemctl enable httpd
+
+
+  #############################
+  # TARGET GROUP
+  #############################
+
+  MyTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: !Sub "babak-tg-${AWS::StackName}"
+      Port: 80
+      Protocol: HTTP
+      TargetType: instance
+      VpcId: !Ref MyVPC
+      HealthCheckPath: /
+      HealthCheckPort: 80
+      HealthCheckProtocol: HTTP
+      HealthCheckIntervalSeconds: 10
+      HealthCheckTimeoutSeconds: 5
+      HealthyThresholdCount: 3
+      UnhealthyThresholdCount: 2
+
+
+  #############################
+  # ALB
+  #############################
+
+  MyALB:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Name: !Sub "babak-alb-${AWS::StackName}"
+      SecurityGroups:
+        - !Ref MyALBSecGrp
+      Subnets: !Ref MySubnet
+      Type: application
+
+  MyALBListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      LoadBalancerArn: !Ref MyALB
+      Port: 80
+      Protocol: HTTP
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref MyTargetGroup
+
+
+  #############################
+  # AUTO SCALING GROUP
+  #############################
+
+  MyASG:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    Properties:
+      AutoScalingGroupName: !Sub "babak-asg-${AWS::StackName}"
+      VPCZoneIdentifier: !Ref MySubnet
+      MinSize: 1
+      MaxSize: 4
+      DesiredCapacity: 2
+      TargetGroupARNs:
+        - !Ref MyTargetGroup
+      HealthCheckType: ELB
+      HealthCheckGracePeriod: 180
+      LaunchTemplate:
+        LaunchTemplateId: !Ref MyLaunchTemplate
+        Version: !GetAtt MyLaunchTemplate.LatestVersionNumber
+
+
+  #############################
+  # SCALING POLICY
+  #############################
+
+  MyScalingPolicy:
+    Type: AWS::AutoScaling::ScalingPolicy
+    Properties:
+      AutoScalingGroupName: !Ref MyASG
+      PolicyType: TargetTrackingScaling
+      TargetTrackingConfiguration:
+        PredefinedMetricSpecification:
+          PredefinedMetricType: ASGAverageCPUUtilization
+        TargetValue: 40.0
+
+
+Outputs:
+  ShowALBDNS:
+    Description: ALB DNS Name
+    Value: !Sub "http://${MyALB.DNSName}"
