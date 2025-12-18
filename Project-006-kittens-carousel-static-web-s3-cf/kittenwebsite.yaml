@@ -1,0 +1,96 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: |
+  This Cloudformation Template is used for creating a architecture which runs S3 static
+  web-hosting using cloudfront distribution and Route 53.
+
+
+Parameters:
+  KittensDomainName:
+    Type: String
+    Description: Full domain name for the website (e.g., kitten.babak-devops.com)
+    AllowedPattern: '^(?!-)([A-Za-z0-9-]{1,63}\.)+[A-Za-z]{2,6}$'
+  
+
+
+Resources:
+  KittensS3Bucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Ref KittensDomainName
+      OwnershipControls:
+        Rules:
+          - ObjectOwnership: BucketOwnerEnforced
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: false       
+      WebsiteConfiguration:
+        IndexDocument: index.html
+
+  MyS3BucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref KittensS3Bucket
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal: "*"
+            Action: s3:GetObject
+            Resource: !Join 
+              - ''
+              - - 'arn:aws:s3:::'
+                - !Ref KittensS3Bucket
+                - '/*'
+           
+  MyCloudFront:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        Aliases:
+          - !Ref KittensDomainName
+        Comment: Kittens Website CloudFront Distribution
+        DefaultCacheBehavior:
+          AllowedMethods:
+            - GET 
+            - HEAD
+          CachePolicyId: 658327ea-f89d-4fab-a63d-7e88639e58f6          
+          Compress: true          
+          TargetOriginId: babakcfn          
+          ViewerProtocolPolicy: allow-all
+        DefaultRootObject: index.html
+        Enabled: true
+        HttpVersion: http2              
+        Origins:
+          -   CustomOriginConfig:              
+                OriginProtocolPolicy: http-only
+              DomainName: !GetAtt KittensS3Bucket.DomainName
+              Id: babakcfn            
+        PriceClass: PriceClass_All
+        ViewerCertificate:
+          AcmCertificateArn: arn:aws:acm:us-east-1:236195543706:certificate/5172b5ac-22ad-4c6c-a422-7ada358cc30c
+          MinimumProtocolVersion: TLSv1.2_2021
+          SslSupportMethod: sni-only
+
+  MyRoute53:
+    Type: AWS::Route53::RecordSetGroup
+    Properties:
+      Comment: Route53 Record Set for Kittens Website
+      HostedZoneId: Z0759846H90ZZN8GBYM4      
+      RecordSets: 
+        - AliasTarget:
+            DNSName: !GetAtt MyCloudFront.DomainName            
+            HostedZoneId: Z2FDTNDATAQYW2
+          Name: !Ref KittensDomainName          
+          Type: A
+          
+Outputs:
+  BucketURL:
+    Description: S3 Bucket URL for kittenscarousel
+    Value: !GetAtt KittensS3Bucket.WebsiteURL
+
+  CloudfrontEndpoint:
+    Description: Endpoint for kittenscarousel
+    Value: !GetAtt MyCloudFront.DomainName
+
+  FullDomainName:
+    Description: Full domain name for kittenscarousel
+    Value: !Ref KittensDomainName
