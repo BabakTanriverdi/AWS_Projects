@@ -62,7 +62,7 @@ Resources:
         Origins:
           -   CustomOriginConfig:              
                 OriginProtocolPolicy: http-only
-              DomainName: !GetAtt KittensS3Bucket.DomainName
+              DomainName: !Select [2, !Split ["/", !GetAtt  MyS3Bucket.WebsiteURL]]
               Id: babakcfn            
         PriceClass: PriceClass_All
         ViewerCertificate:
